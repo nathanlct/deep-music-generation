@@ -9,7 +9,7 @@ class Generator(nn.Module):
     def __init__(self):
         super(Generator, self).__init__()
 
-        self.latent_dim = 100
+        self.z_dim = 100
 
         self.fc1 = nn.Linear(100, 1024)
         self.fc2 = nn.Linear(1024, 513)
@@ -33,9 +33,9 @@ class Generator(nn.Module):
             self.tconv5, nn.Tanh(),
         )
 
-    def forward(self, z, batch_size):
+    def forward(self, z):
         out = self.fc_block(z)
-        out = out.view(batch_size, -1, 3, 1)
+        out = out.view(z.shape[0], -1, 3, 1)
         out = self.conv_block(out)
         return out
 
@@ -60,8 +60,8 @@ class Discriminator(nn.Module):
             self.fc2, nn.Sigmoid()
         )
 
-    def forward(self, x, batch_size):
+    def forward(self, x):
         out = self.conv_block(x)
-        out = out.view(batch_size, -1)
+        out = out.view(x.shape[0], -1)
         out = self.fc_block(out)
         return out
