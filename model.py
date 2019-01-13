@@ -21,16 +21,16 @@ class Generator(nn.Module):
         self.tconv5 = nn.ConvTranspose1d(171, 1, (1,128))
 
         self.fc_block = nn.Sequential(
-            self.fc1, nn.ReLU(),
-            self.fc2, nn.ReLU(),
+            self.fc1, nn.BatchNorm1d(1024), nn.ReLU(),
+            self.fc2, nn.BatchNorm1d(513), nn.ReLU(),
         )
 
         self.conv_block = nn.Sequential(
-            self.tconv1, nn.ReLU(),
-            self.tconv2, nn.ReLU(),
-            self.tconv3, nn.ReLU(),
-            self.tconv4, nn.ReLU(),
-            self.tconv5, nn.Sigmoid(),
+            self.tconv1, nn.BatchNorm2d(171), nn.ReLU(),
+            self.tconv2, nn.BatchNorm2d(171), nn.ReLU(),
+            self.tconv3, nn.BatchNorm2d(171), nn.ReLU(),
+            self.tconv4, nn.BatchNorm2d(171), nn.ReLU(),
+            self.tconv5, nn.Tanh(),
         )
 
     def forward(self, z, batch_size):
@@ -50,10 +50,18 @@ class Discriminator(nn.Module):
         self.fc1 = nn.Linear(231, 1024) # 231 = 77*3
         self.fc2 = nn.Linear(1024, 1)
 
+        self.conv_block = nn.Sequential(
+            self.conv1, nn.BatchNorm2d(14), nn.LeakyReLU(),
+            self.conv2, nn.BatchNorm2d(77), nn.LeakyReLU(),
+        )
+
+        self.fc_block = nn.Sequential(
+            self.fc1, nn.BatchNorm1d(1024), nn.LeakyReLU(),
+            self.fc2, nn.Sigmoid()
+        )
+
     def forward(self, x, batch_size):
-        out = F.relu(self.conv1(x))
-        out = F.relu(self.conv2(out))
+        out = self.conv_block(x)
         out = out.view(batch_size, -1)
-        out = F.relu(self.fc1(out))
-        out = torch.sigmoid(self.fc2(out))
+        out = self.fc_block(out)
         return out
