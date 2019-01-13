@@ -1,4 +1,5 @@
 import model
+import os
 import torch
 import numpy as np
 import matplotlib.pyplot as plt
@@ -25,13 +26,13 @@ def testdims():
     z = torch.randn(batch_size, netG.z_dim)
     out = netG.forward(z) ; print(out.shape)
     out = netD.forward(out) ; print(out.shape)
-testdims()
+# testdims()
 
 batch_size = 64
 lr = 1e-3
-n_epochs = 20
+n_epochs = 10
 
-test_data = np.random.randn(64 * 10, 1, 48, 128)
+test_data = np.random.randn(64 * 3, 1, 48, 128)
 X = test_data
 # len(X) must be a multiple of batch_size
 # (otherwise, modify torch.split() so the last incomplete batch is not returned)
@@ -45,7 +46,7 @@ optimizer_D = torch.optim.Adam(netD.parameters(), lr=lr)
 lossG = []
 lossD = []
 
-for e in range(n_epochs):
+for epoch in range(1, n_epochs+1):
 
     np.random.shuffle(X)
     real_samples = torch.from_numpy(X).type(torch.FloatTensor)
@@ -53,7 +54,7 @@ for e in range(n_epochs):
     lossG_epoch = 0
     lossD_epoch = 0
 
-    print("epoch {}/{}".format(e+1, n_epochs))
+    print("epoch {}/{}".format(epoch, n_epochs))
 
     for real_batch in real_samples.split(batch_size):
 
@@ -87,6 +88,23 @@ for e in range(n_epochs):
 
     lossG.append(lossG_epoch)
     lossD.append(lossD_epoch)
+
+    if not os.path.exists('models'):
+        os.makedirs('models')
+
+    torch.save({
+        'epoch': epoch,
+        'model_state_dict': netG.state_dict(),
+        'optimizer_state_dict': optimizer_G.state_dict(),
+        'loss': lossG,
+    }, "models/netG_epoch_{}.pt".format(epoch))
+
+    torch.save({
+        'epoch': epoch,
+        'model_state_dict': netD.state_dict(),
+        'optimizer_state_dict': optimizer_D.state_dict(),
+        'loss': lossD,
+    }, "models/netD_epoch_{}.pt".format(epoch))
 
 
 plt.figure()
