@@ -7,6 +7,7 @@ import time
 URL = 'http://kern.ccarh.org/'
 FORMAT = 'midi' # choose midi or kern
 EXTENSIONS = {'midi': 'mid', 'kern': 'krn'}
+MAGIC = {'midi': 'audio/midi', 'kern': 'text/plain'}
 ENCODING = 'unicode_escape'
 
 def download():
@@ -51,16 +52,20 @@ def download():
             if file_found:
                 count += 1
                 file_name = 'data/%s/%02d.%s' % (name, count, EXTENSIONS[FORMAT])
-                if os.path.isfile(file_name) and magic.from_file(file_name, mime=True) == 'audio/midi':
+                # check that download is not already done
+                if os.path.isfile(file_name) and magic.from_file(file_name, mime=True) == MAGIC[FORMAT]:
                     continue
+
                 suffix = file_found.group(1).split('location=users')[-1]
                 file_url = 'http://kern.humdrum.org/cgi-bin/ksdata?l=users%s.krn&f=%s' % (suffix, FORMAT)
                 # writing the downloaded file on disk
                 with open(file_name, 'wb') as f:
                     kern = requests.get(file_url)
                     f.write(kern.content)
-                    if magic.from_file(file_name, mime=True) not in ['audio/midi','inode/x-empty']:
-                        raise TypeError('Type of %s is %s' % (file_name, magic.from_file(file_name, mime=True)))
+                # delete the file if it is not a midi file
+                file_type = magic.from_file(file_name, mime=True)
+                if file_type != MAGIC[FORMAT]:
+                    os.remove(file_name)
 
         print(' > Done, %d scores downloaded' % count)
     end = time.time()
