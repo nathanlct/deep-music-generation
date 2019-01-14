@@ -1,3 +1,4 @@
+import magic
 import os
 import re
 import requests
@@ -43,18 +44,25 @@ def download():
         r2 = requests.get('%s%s' % (path, name)) # get source code of artist's page
         s2 = r2.content.decode(ENCODING)
         files = s2.split('\n')
-        count = 1
+        count = 0
 
         for file in files:
-            file_found = re.search('<a href=(.+?).krn&format=kern', file) # get file's url
+            file_found = re.search('location=users(.+?).krn&format=kern', file) # get file's url
             if file_found:
-                file_url = file_found.group(1)
+                count += 1
+                file_name = 'data/%s/%02d.%s' % (name, count, EXTENSIONS[FORMAT])
+                if os.path.isfile(file_name) and magic.from_file(file_name, mime=True) == 'audio/midi':
+                    continue
+                suffix = file_found.group(1).split('location=users')[-1]
+                file_url = 'http://kern.humdrum.org/cgi-bin/ksdata?l=users%s.krn&f=%s' % (suffix, FORMAT)
                 # writing the downloaded file on disk
-                with open('data/%s/%02d.%s' % (name, count, EXTENSIONS[FORMAT]), 'wb') as f:
-                    kern = requests.get('%s.krn&format=%s' % (file_url, FORMAT))
+                with open(file_name, 'wb') as f:
+                    kern = requests.get(file_url)
                     f.write(kern.content)
-                    count += 1
-        print(' > Done, %d scores downloaded' % (count-1))
+                    if magic.from_file(file_name, mime=True) not in ['audio/midi','inode/x-empty']:
+                        raise TypeError('Type of %s is %s' % (file_name, magic.from_file(file_name, mime=True)))
+
+        print(' > Done, %d scores downloaded' % count)
     end = time.time()
     print('Scores successfully downloaded. Time elapsed: %ds' % (end-start))
 
