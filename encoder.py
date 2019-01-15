@@ -2,7 +2,7 @@ import numpy as np
 
 import music21 as m21
 
-NUMBER_OF_PITCHES = 128
+NUMBER_OF_PITCHES = 127
 TIME_DIVISION = 12
 
 def add_note_to_matrix(matrix, pitch, offset, duration):
@@ -19,13 +19,13 @@ def pattern_to_matrix(pattern, dim):
     compute the matrix which represents the code of [pattern]
     '''
     matrix = np.zeros(dim, dtype=bool)
-    print('voice')
-    pattern.flat.notes.show('text')
+    # print('voice')
+    # pattern.flat.notes.show('text')
     for note in pattern.flat.notes:
         # extract data
         offset = int(note.offset * TIME_DIVISION)
         duration = int(note.duration.quarterLength * TIME_DIVISION)
-        print(note.pitches, note.offset, note.duration.quarterLength)
+        # print(note.pitches, note.offset, note.duration.quarterLength)
         for pitch in note.pitches:
             add_note_to_matrix(matrix, pitch.midi, offset, duration)
     # print('debug')
@@ -33,7 +33,7 @@ def pattern_to_matrix(pattern, dim):
     #     for j in range(108):
     #         if M[i,j] != matrix[i,j]:
     #             print(i,j)
-    print(matrix[-1])
+    # print(matrix[-1])
     return matrix
 
 def separate_matrix(matrix, time_signature):
@@ -52,7 +52,7 @@ def file_to_dictionary(file):
     compute the dictionary encoding the file
     '''
     score = m21.converter.parse(file) if not isinstance(file, m21.stream.Stream) else file
-    time_signature = 3 # TODO:
+    time_signature = 4 # TODO:
     length = int(score.highestTime * TIME_DIVISION)
     height = NUMBER_OF_PITCHES + 1
     matrix_dict = {}
@@ -113,9 +113,9 @@ def debug_test():
     dict = file_to_dictionary(score)
     # print(len(dict), len(dict['Voice 1']), np.shape(dict['Voice 1'][0]))
     # print(dict['Voice 2'][0][:,0])
-    score.flat.notes.show('midi')
+    # score.flat.notes.show('midi')
     score_rec = dictionary_to_midi(dict)
-    score_rec.show('midi')
+    # score_rec.show('midi')
 
 # TODO: time signatures, instrument, keys
 

@@ -1,3 +1,4 @@
+
 import numpy as np
 import torch
 import torch.nn as nn
@@ -30,7 +31,7 @@ class Generator(nn.Module):
             self.tconv2, nn.BatchNorm2d(171), nn.ReLU(),
             self.tconv3, nn.BatchNorm2d(171), nn.ReLU(),
             self.tconv4, nn.BatchNorm2d(171), nn.ReLU(),
-            self.tconv5, nn.Tanh(),
+            self.tconv5, nn.Sigmoid(),
         )
 
     def forward(self, z):
