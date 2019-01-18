@@ -14,6 +14,9 @@ import music21 as m21
 MAX_ID = 2
 
 def change_encoding(dict, old, new):
+    '''
+    convert the score encoded by [dict] from encoding [old] to encoding [new]
+    '''
     if old > MAX_ID or new > MAX_ID:
         raise ValueError('Encoding %d does not exist: encodings have IDs between 0 and %d')
 
