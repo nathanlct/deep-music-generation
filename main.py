@@ -2,7 +2,7 @@ import model
 import os
 import torch
 import numpy as np
-#import matplotlib.pyplot as plt
+import matplotlib.pyplot as plt
 import encoder
 
 def load_data():
@@ -38,15 +38,16 @@ test_data = np.random.uniform(low=0.8,high=1.0,size=(32*50, 1, 16, 128))
 # test_data = np.random.randn(32*3, 1, 16, 128)
 
 bars = []
-for i in range(1,257):
+for i in range(10,12):
     x = encoder.file_to_dictionary('data/Bach+Johann/' + str(i) + '.mid')['Voice 1']
     bars += x
 bars = np.array(bars, dtype=float)
-bars += np.random.randn(bars.shape[0],bars.shape[1],bars.shape[2])/10
+# bars += np.random.randn(bars.shape[0],bars.shape[1],bars.shape[2])/10
 bars[bars >= 1] = 1
 bars[bars <= 0] = 0
-bars = bars.reshape(-1, 1, 48, 128)[:3968]
+bars = bars.reshape(-1, 1, 48, 128)[:32]
 X = bars
+print("bars echentillon : ",bars[0])
 
 # len(X) must be a multiple of batch_size
 # (otherwise, modify torch.split() so the last incomplete batch is not returned)
@@ -75,6 +76,9 @@ for epoch in range(1, 21):
         # improve discriminator
         z = gpu(torch.randn(batch_size, netG.z_dim))
         fake_batch = netG(z)
+
+        m = torch.nn.Softmax()
+        fake_batch = m(fake_batch)
 
         D_scr_on_real = netD(gpu(real_batch))
         D_scr_on_fake = netD(fake_batch)
@@ -108,6 +112,9 @@ for epoch in range(1, n_epochs+1):
         # improve discriminator
         z = gpu(torch.randn(batch_size, netG.z_dim))
         fake_batch = netG(z)
+
+        m = torch.nn.Softmax()
+        fake_batch = m(fake_batch)
 
         D_scr_on_real = netD(gpu(real_batch))
         D_scr_on_fake = netD(fake_batch)
@@ -155,17 +162,20 @@ for epoch in range(1, n_epochs+1):
         }, "models/netD_epoch_{}.pt".format(epoch))
 
 
-# plt.figure()
-# epochs = list(range(1, 20+n_epochs+1))
-# plt.plot(epochs, lossG, label='Generator loss')
-# plt.plot(epochs, lossD, label='Discriminator loss')
-# plt.xlabel('Epoch')
-# plt.ylabel('Loss (non-normalized)')
-# plt.legend()
-# plt.show()
+plt.figure()
+epochs = list(range(1, 20+n_epochs+1))
+plt.plot(epochs, lossG, label='Generator loss')
+plt.plot(epochs, lossD, label='Discriminator loss')
+plt.xlabel('Epoch')
+plt.ylabel('Loss (non-normalized)')
+plt.legend()
+plt.show()
 
 
-# z = torch.randn(batch_size, netG.z_dim)
-# out = netG.forward(z)
-# print(out)
-# print(out[3])
+z = torch.randn(batch_size, netG.z_dim)
+out = netG.forward(z)
+
+# m = torch.nn.Softmax()
+# out = m(out)
+print("Sortie sur le générateur : ",out)
+print("Sortie sur le générateur : ",out[3])
