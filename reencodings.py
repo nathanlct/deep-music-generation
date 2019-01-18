@@ -125,6 +125,5 @@ def debug():
     dict21 = change_encoding(dict02, 2, 1)
     print('dict21:\n', dict21['a'][0])
 
-
 if __name__ == '__main__':
     debug()

@@ -9,7 +9,8 @@ PITCHES_WEIGHTS = np.array([0,16,1,9,1,1,16,1,16,0,4,4])
 
 def pitches_histogram(dict):
     '''
-    # TODO: write doc
+    compute the table hist of the score encoded by [dict], where hist[i] denotes
+    the number of notes whose pitch class is i in the score
     '''
     pitch_classes = np.zeros(NUMBER_OF_PITCH_CLASSES)
     pitches = np.zeros(NUMBER_OF_PITCHES)
@@ -26,6 +27,9 @@ def pitches_histogram(dict):
     return pitch_classes
 
 def best_tonality(hist, weights=PITCHES_WEIGHTS, print_results=False):
+    '''
+    find statistically what is the tonality of the score whose histogram is [hist]
+    '''
     c = NUMBER_OF_PITCH_CLASSES
     extended_hist = np.zeros(2*c)
     extended_hist[:c] = hist
@@ -68,9 +72,11 @@ def main(file):
     hist = pitches_histogram(dict)
     t = best_tonality(hist, print_results=True)
     transposed = transpose(dict, t)
+    hist2 = pitches_histogram(transposed)
+    t2 = best_tonality(hist2, print_results=True)
     score.show('midi')
     score_rec = dictionary_to_midi(transposed)
     score_rec.show('midi')
 
 if __name__ == '__main__':
-    main('data/Brahms/04.mid')
+    main('data/Brahms/4.mid')
