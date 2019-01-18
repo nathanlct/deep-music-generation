@@ -1,13 +1,18 @@
-import model
-import os
-import torch
 import numpy as np
 import matplotlib.pyplot as plt
-import encoder
+import os
+import torch
 import torch.nn as nn
 
+import encoder
+import encodings
+import model
+from downloader import PATH
+
 def load_data():
-    pass
+    if os.path.isfile(os.path.join(PATH, 'scores')) and os.path.isfile(os.path.join(PATH, 'labels')):
+        pass
+
 
 
 use_gpu = torch.cuda.is_available()
