@@ -3,8 +3,10 @@ import os
 import torch
 import numpy as np
 import matplotlib.pyplot as plt
-import encoder
+import encoder, encodings
+# from encodings import debug
 import torch.nn as nn
+from scipy.misc import imshow
 
 def load_data():
     pass
@@ -34,23 +36,28 @@ def testdims():
 
 batch_size = 32
 lr = 2e-4
-n_epochs = 100
+n_epochs = 50
 
 # test
 test_data = np.random.uniform(low=0.8,high=1.0,size=(32*50, 1, 16, 128))
 # test_data = np.random.randn(32*3, 1, 16, 128)
 
 bars = []
-for i in range(1,257):#257):
+d = encoder.file_to_dictionary('data/Bach+Johann/10.mid')
+plt.imshow(encodings.change_encoding(d,0,2)['Voice 1'][0])
+for i in range(10,11):#257):
     x = encoder.file_to_dictionary('data/Bach+Johann/' + str(i) + '.mid')['Voice 1']
     bars += x
+    print(x)
 bars = np.array(bars, dtype=float)
 # bars += np.random.randn(bars.shape[0],bars.shape[1],bars.shape[2])/10
 bars[bars >= 1] = 1
 bars[bars <= 0] = 0
-bars = bars.reshape(-1, 1, 48, 128)[:3968]
+bars = bars.reshape(-1, 1, 48, 128)[:32]
 X = bars
 print("bars echentillon : ",bars[0])
+plt.imshow(bars[10][0])
+plt.show()
 
 def weights_init(m):
     classname = m.__class__.__name__
@@ -75,11 +82,21 @@ netD.apply(weights_init)
 print("Size of data: {} ({} batches)".format(len(X), len(X) / batch_size))
 print("Params: batch_size={}, lr={}, n_epochs={}".format(batch_size, lr, n_epochs))
 
-optimizer_G = torch.optim.Adam(netG.parameters(), lr=lr, betas=(0.5, 0.999))
-optimizer_D = torch.optim.Adam(netD.parameters(), lr=lr, betas=(0.5, 0.999))
+optimizer_G = torch.optim.Adam(netG.parameters())
+optimizer_D = torch.optim.Adagrad(netD.parameters())
 
 lossG = []
 lossD = []
+
+def gamble(tensor):
+    # for i in range(len(tensor)) :
+    # print(tensor)
+    # print(tensor.size())
+    tensor = torch.reshape(tensor,[32,48*128])
+    # print(tensor)
+    tensor = torch.nn.functional.gumbel_softmax(tensor)
+    tensor = torch.reshape(tensor,[32,1,48,128])
+    return tensor
 
 for epoch in range(1, 21):
 
@@ -97,8 +114,11 @@ for epoch in range(1, 21):
         z = gpu(torch.randn(batch_size, netG.z_dim))
         fake_batch = netG(z)
 
-        m = torch.nn.Softmax()
-        fake_batch = m(fake_batch)
+        # print(fake_batch.size)
+
+        # m = torch.nn.Softmax()
+        # fake_batch = m(fake_batch)
+        fake_batch = gamble(fake_batch)
 
         D_scr_on_real = netD(gpu(real_batch))
         D_scr_on_fake = netD(fake_batch)
@@ -149,9 +169,10 @@ for epoch in range(1, n_epochs+1):
         z = gpu(torch.randn(batch_size, netG.z_dim))
         fake_batch = netG(z)
 
-
-        m = torch.nn.Softmax()
-        fake_batch = m(fake_batch)
+        #
+        # m = torch.nn.Softmax()
+        # fake_batch = m(fake_batch)
+        fake_batch = gamble(fake_batch)
 
         D_scr_on_real = netD(gpu(real_batch))
         D_scr_on_fake = netD(fake_batch)
@@ -178,8 +199,8 @@ for epoch in range(1, n_epochs+1):
 
             fake_batch = netG(z)
 
-            m = torch.nn.Softmax()
-            fake_batch = m(fake_batch)
+            # m = torch.nn.Softmax()
+            # fake_batch = m(fake_batch)
 
             D_scr_on_fake = netD(fake_batch)
             loss = -torch.mean(torch.log(D_scr_on_fake))
@@ -204,7 +225,7 @@ for epoch in range(1, n_epochs+1):
     lossD.append(lossD_epoch)
 
     print("LossG: {}, LossD: {}".format(lossG_epoch, lossD_epoch))
-    print("fake_batch",fake_batch)
+    # print("fake_batch",fake_batch)
 
 
 
@@ -225,22 +246,32 @@ for epoch in range(1, n_epochs+1):
             'loss': lossD,
         }, "models/netD_epoch_{}.pt".format(epoch))
 
+for i in range(20):
+    lossG[i] = lossG[20]
 
-# plt.figure()
-# epochs = list(range(1, 20+n_epochs+1))
-# plt.plot(epochs, lossG, label='Generator loss')
-# plt.plot(epochs, lossD, label='Discriminator loss')
-# plt.xlabel('Epoch')
-# plt.ylabel('Loss (non-normalized)')
-# plt.legend()
-# plt.show()
-
+plt.figure()
+epochs = list(range(1, 20+n_epochs+1))
+plt.plot(epochs, lossG, label='Generator loss')
+plt.plot(epochs, lossD, label='Discriminator loss')
+plt.xlabel('Epoch')
+plt.ylabel('Loss (non-normalized)')
+plt.legend()
+plt.show()
 
 z = torch.randn(batch_size, netG.z_dim)
 out = netG.forward(z)
 
-m = torch.nn.Softmax()
-out = m(out)
 
-print("Sortie sur le générateur : ",out)
-print("Sortie sur le générateur : ",out[3])
+plt.imshow(out[3][0].detach().numpy())
+plt.show()
+
+# m = torch.nn.functional.gumbel_softmax()
+thing = torch.nn.functional.gumbel_softmax(out[3][0])
+print(out[3][0].detach().numpy())
+print(thing.detach().numpy())
+
+# print("Sortie sur le générateur : ",out)
+# print("Sortie sur le générateur : ",out[3][0].detach().numpy())
+
+plt.imshow(thing.detach().numpy())
+plt.show()

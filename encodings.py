@@ -123,5 +123,7 @@ def debug():
     print('dict21:\n', dict21['a'][0])
 
 
+
+
 if __name__ == '__main__':
     debug()
