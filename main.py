@@ -48,7 +48,7 @@ bars = np.array(bars, dtype=float)
 # bars += np.random.randn(bars.shape[0],bars.shape[1],bars.shape[2])/10
 bars[bars >= 1] = 1
 bars[bars <= 0] = 0
-bars = bars.reshape(-1, 1, 48, 128)[:32]
+bars = bars.reshape(-1, 1, 48, 128)[:3968]
 X = bars
 print("bars echentillon : ",bars[0])
 
@@ -137,14 +137,17 @@ for epoch in range(1, n_epochs+1):
         ###
         # improve discriminator
         ###
-        netD.zero_grad()
-        # on real batch
-        real = gpu(real_batch)
-        label = gpu(torch.full((batch_size,), real_label))
-        output = netD(real).view(-1)
-        errD_real = criterion(output, label)
-        errD_real.backward()
-        D_x = output.mean().item()
+        # netD.zero_grad()
+        # # on real batch
+        # real = gpu(real_batch)
+        # label = gpu(torch.full((batch_size,), real_label))
+        # output = netD(real).view(-1)
+        # errD_real = criterion(output, label)
+        # errD_real.backward()
+        # D_x = output.mean().item()
+        #
+        z = gpu(torch.randn(batch_size, netG.z_dim))
+        fake_batch = netG(z)
 
 
         m = torch.nn.Softmax()
@@ -163,28 +166,45 @@ for epoch in range(1, n_epochs+1):
         # output = netD(fake.detach()).view(-1)
         # errD_fake = criterion(output, label)
         # errD_fake.backward()
-        optimizer_D.step()
+        # optimizer_D.step()
 
-        errD = errD_real + errD_fake
-        lossD_epoch += errD
+        lossD_epoch += loss
+        #
+        # errD = errD_real + errD_fake
+        # lossD_epoch += errD
 
         # improve generator twice
         for _ in range(4):
-            netG.zero_grad()
-            label.fill_(real_label)
-            z = gpu(torch.randn(batch_size, netG.z_dim))
-            fake = netG(z)
-            output = netD(fake).view(-1)
-            errG = criterion(output, label)
-            errG.backward()
-            optimizer_G.step()
 
-            lossG_epoch += errG
+            fake_batch = netG(z)
+
+            m = torch.nn.Softmax()
+            fake_batch = m(fake_batch)
+
+            D_scr_on_fake = netD(fake_batch)
+            loss = -torch.mean(torch.log(D_scr_on_fake))
+            optimizer_G.zero_grad()
+            loss.backward()
+
+            optimizer_G.step()
+            lossG_epoch += loss
+
+            # netG.zero_grad()
+            # label.fill_(real_label)
+            # z = gpu(torch.randn(batch_size, netG.z_dim))
+            # fake = netG(z)
+            # output = netD(fake).view(-1)
+            # errG = criterion(output, label)
+            # errG.backward()
+            # optimizer_G.step()
+            #
+            # lossG_epoch += errG
 
     lossG.append(lossG_epoch)
     lossD.append(lossD_epoch)
 
     print("LossG: {}, LossD: {}".format(lossG_epoch, lossD_epoch))
+    print("fake_batch",fake_batch)
 
 
 
@@ -206,20 +226,21 @@ for epoch in range(1, n_epochs+1):
         }, "models/netD_epoch_{}.pt".format(epoch))
 
 
-plt.figure()
-epochs = list(range(1, 20+n_epochs+1))
-plt.plot(epochs, lossG, label='Generator loss')
-plt.plot(epochs, lossD, label='Discriminator loss')
-plt.xlabel('Epoch')
-plt.ylabel('Loss (non-normalized)')
-plt.legend()
-plt.show()
+# plt.figure()
+# epochs = list(range(1, 20+n_epochs+1))
+# plt.plot(epochs, lossG, label='Generator loss')
+# plt.plot(epochs, lossD, label='Discriminator loss')
+# plt.xlabel('Epoch')
+# plt.ylabel('Loss (non-normalized)')
+# plt.legend()
+# plt.show()
 
 
 z = torch.randn(batch_size, netG.z_dim)
 out = netG.forward(z)
 
-# m = torch.nn.Softmax()
-# out = m(out)
+m = torch.nn.Softmax()
+out = m(out)
+
 print("Sortie sur le générateur : ",out)
 print("Sortie sur le générateur : ",out[3])
