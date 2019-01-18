@@ -2,7 +2,7 @@ import numpy as np
 
 import music21 as m21
 
-NUMBER_OF_PITCHES = 128
+NUMBER_OF_PITCHES = 127
 TIME_DIVISION = 12
 
 def add_note_to_matrix(matrix, pitch, offset, duration):
@@ -19,10 +19,15 @@ def pattern_to_matrix(pattern, dim):
     compute the matrix which represents the code of [pattern]
     '''
     matrix = np.zeros(dim, dtype=bool)
+
     for note in pattern.flat.notes:
         # extract data
         offset = int(note.offset * TIME_DIVISION)
         duration = int(note.duration.quarterLength * TIME_DIVISION)
+
+        for pitch in note.pitches:
+            add_note_to_matrix(matrix, pitch.midi, offset, duration)
+
         for pitch in note.pitches:
             add_note_to_matrix(matrix, pitch.midi, offset, duration)
     return matrix
@@ -118,8 +123,8 @@ def debug_test():
     dict = file_to_dictionary(score)
     # print(len(dict), len(dict['Voice 1']), np.shape(dict['Voice 1'][0]))
     # print(dict['Voice 2'][0][:,0])
+    # score.flat.notes.show('midi')
     score_rec = dictionary_to_midi(dict)
-    # score.show('midi')
     # score_rec.show('midi')
 
 # TODO: time signatures, instrument, keys
