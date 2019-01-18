@@ -51,7 +51,7 @@ def download():
             file_found = re.search('location=users(.+?).krn&format=kern', file) # get file's url
             if file_found:
                 count += 1
-                file_name = 'data/%s/%02d.%s' % (name, count, EXTENSIONS[FORMAT])
+                file_name = 'data/%s/%d.%s' % (name, count, EXTENSIONS[FORMAT])
                 # check that download is not already done
                 if os.path.isfile(file_name) and magic.from_file(file_name, mime=True) == MAGIC[FORMAT]:
                     continue
