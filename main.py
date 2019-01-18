@@ -2,8 +2,9 @@ import model
 import os
 import torch
 import numpy as np
-#import matplotlib.pyplot as plt
+# import matplotlib.pyplot as plt
 import encoder
+import torch.nn as nn
 
 def load_data():
     pass
@@ -22,31 +23,50 @@ netG = gpu(model.Generator())
 netD = gpu(model.Discriminator())
 
 def testdims():
-    batch_size = 32
+    batch_size = 2
     z = torch.randn(batch_size, netG.z_dim)
-    out = netG.forward(z) ; print(out.shape)
+    out = netG.forward(z) ; print(out)
     out = netD.forward(out) ; print(out.shape)
-#testdims()
+# testdims()
+
+
 
 
 batch_size = 32
 lr = 2e-4
-n_epochs = 50
+n_epochs = 100
 
 # test
 test_data = np.random.uniform(low=0.8,high=1.0,size=(32*50, 1, 16, 128))
 # test_data = np.random.randn(32*3, 1, 16, 128)
 
 bars = []
-for i in range(1,257):
+for i in range(1,257):#257):
     x = encoder.file_to_dictionary('data/Bach+Johann/' + str(i) + '.mid')['Voice 1']
     bars += x
 bars = np.array(bars, dtype=float)
 bars += np.random.randn(bars.shape[0],bars.shape[1],bars.shape[2])/10
 bars[bars >= 1] = 1
 bars[bars <= 0] = 0
-bars = bars.reshape(-1, 1, 48, 128)[:3968]
+bars = bars.reshape(-1, 1, 48, 128)[:3968]#[:3968]
 X = bars
+
+def weights_init(m):
+    classname = m.__class__.__name__
+    if classname.find('Conv') != -1:
+        nn.init.normal_(m.weight.data, 0.0, 0.02)
+    elif classname.find('BatchNorm') != -1:
+        nn.init.normal_(m.weight.data, 1.0, 0.02)
+        nn.init.constant_(m.bias.data, 0)
+
+
+netG.apply(weights_init)
+netD.apply(weights_init)
+
+# print(netG)
+# print(netD)
+
+
 
 # len(X) must be a multiple of batch_size
 # (otherwise, modify torch.split() so the last incomplete batch is not returned)
@@ -60,37 +80,12 @@ optimizer_D = torch.optim.Adam(netD.parameters(), lr=lr, betas=(0.5, 0.999))
 lossG = []
 lossD = []
 
-for epoch in range(1, 21):
 
-    np.random.shuffle(X)
-    real_samples = torch.from_numpy(X).type(torch.FloatTensor)
-
-    lossG_epoch = 0
-    lossD_epoch = 0
-
-    print("D only ; epoch {}/{}".format(epoch, 20))
-
-    for real_batch in real_samples.split(batch_size):
-
-        # improve discriminator
-        z = gpu(torch.randn(batch_size, netG.z_dim))
-        fake_batch = netG(z)
-
-        D_scr_on_real = netD(gpu(real_batch))
-        D_scr_on_fake = netD(fake_batch)
-
-        loss = - torch.mean(torch.log(1 - D_scr_on_fake) + torch.log(D_scr_on_real))
-        optimizer_D.zero_grad()
-        loss.backward()
-        optimizer_D.step()
-
-        lossD_epoch += loss
-
-    lossG.append(-5)
-    lossD.append(lossD_epoch)
-
-    print("LossD: {}".format(lossD))
-
+# init
+criterion = nn.BCELoss()
+fixed_noise = torch.randn(64, netG.z_dim, 1, 1)
+real_label = 1
+fake_label = 0
 
 
 for epoch in range(1, n_epochs+1):
@@ -105,35 +100,46 @@ for epoch in range(1, n_epochs+1):
 
     for real_batch in real_samples.split(batch_size):
 
+        ###
         # improve discriminator
+        ###
+        netD.zero_grad()
+        # on real batch
+        real = gpu(real_batch)
+        label = gpu(torch.full((batch_size,), real_label))
+        output = netD(real).view(-1)
+        errD_real = criterion(output, label)
+        errD_real.backward()
+        D_x = output.mean().item()
+
         z = gpu(torch.randn(batch_size, netG.z_dim))
-        fake_batch = netG(z)
-
-        D_scr_on_real = netD(gpu(real_batch))
-        D_scr_on_fake = netD(fake_batch)
-
-        loss = - torch.mean(torch.log(1 - D_scr_on_fake) + torch.log(D_scr_on_real))
-        optimizer_D.zero_grad()
-        loss.backward()
+        fake = netG(z)
+        label.fill_(fake_label)
+        output = netD(fake.detach()).view(-1)
+        errD_fake = criterion(output, label)
+        errD_fake.backward()
         optimizer_D.step()
 
-        lossD_epoch += loss
+        errD = errD_real + errD_fake
+        lossD_epoch += errD
 
         # improve generator twice
         for _ in range(4):
+            netG.zero_grad()
+            label.fill_(real_label)
             z = gpu(torch.randn(batch_size, netG.z_dim))
-            fake_batch = netG(z)
-            D_scr_on_fake = netD(fake_batch)
-            loss = -torch.mean(torch.log(D_scr_on_fake))
-            optimizer_G.zero_grad()
-            loss.backward()
+            fake = netG(z)
+            output = netD(fake).view(-1)
+            errG = criterion(output, label)
+            errG.backward()
             optimizer_G.step()
-            lossG_epoch += loss
+
+            lossG_epoch += errG
 
     lossG.append(lossG_epoch)
     lossD.append(lossD_epoch)
 
-    print("LossG: {}, LossD: {}".format(lossG, lossD))
+    print("LossG: {}, LossD: {}".format(lossG_epoch, lossD_epoch))
 
 
 
@@ -156,7 +162,7 @@ for epoch in range(1, n_epochs+1):
 
 
 # plt.figure()
-# epochs = list(range(1, 20+n_epochs+1))
+# epochs = list(range(1, n_epochs+1))
 # plt.plot(epochs, lossG, label='Generator loss')
 # plt.plot(epochs, lossD, label='Discriminator loss')
 # plt.xlabel('Epoch')
@@ -164,7 +170,7 @@ for epoch in range(1, n_epochs+1):
 # plt.legend()
 # plt.show()
 
-
+#
 # z = torch.randn(batch_size, netG.z_dim)
 # out = netG.forward(z)
 # print(out)
