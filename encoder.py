@@ -29,7 +29,7 @@ def pattern_to_matrix(pattern, dim):
 
 def separate_matrix(matrix, time_signature):
     '''
-    divides the [matrix] into a list of matrices, each representing a measure
+    divide the [matrix] into a list of matrices, each representing a measure
     '''
     matrix_list = []
     measure_size = TIME_DIVISION * time_signature
@@ -119,8 +119,8 @@ def debug_test():
     # print(len(dict), len(dict['Voice 1']), np.shape(dict['Voice 1'][0]))
     # print(dict['Voice 2'][0][:,0])
     score_rec = dictionary_to_midi(dict)
-    score.show('midi')
-    score_rec.show('midi')
+    # score.show('midi')
+    # score_rec.show('midi')
 
 # TODO: time signatures, instrument, keys
 
