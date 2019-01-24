@@ -125,7 +125,7 @@ def debug_test():
     # print(dict['Voice 2'][0][:,0])
     # score.flat.notes.show('midi')
     score_rec = dictionary_to_midi(dict)
-    # score_rec.show('midi')
+    score_rec.show('midi')
 
 # TODO: time signatures, instrument, keys
 

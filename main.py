@@ -1,13 +1,17 @@
-import model
-import os
-import torch
 import numpy as np
 import matplotlib.pyplot as plt
-import encoder
+import os
+import pickle
+import torch
 import torch.nn as nn
+import sys
 
-def load_data():
-    pass
+import encoder
+import reencodings
+import model
+from downloader import PATH
+
+
 
 
 use_gpu = torch.cuda.is_available()
@@ -19,38 +23,66 @@ def gpu(tensor, gpu=use_gpu):
     else:
         return tensor
 
-netG = gpu(model.Generator())
-netD = gpu(model.Discriminator())
 
-def testdims():
-    batch_size = 2
-    z = torch.randn(batch_size, netG.z_dim)
-    out = netG.forward(z) ; print(out)
-    out = netD.forward(out) ; print(out.shape)
-# testdims()
+"""
+DATA LOADING
+"""
+
+SCORES_PATH = os.path.join(PATH, 'scores')
+LABELS_PATH = os.path.join(PATH, 'labels')
+
+def load_data():
+    if os.path.isfile(SCORES_PATH) and os.path.isfile(LABELS_PATH):
+        return 0
+    else:
+        scores = []
+        labels = []
+        for dir in os.listdir(PATH):
+            print(dir)
+            dir_path = os.path.join(PATH, dir)
+            for file in os.listdir(dir_path):
+                scores.append(encoder.file_to_dictionary(os.path.join(dir_path, file)))
+                labels.append(dir)
+
+    raise AttributeError
+
+def show_bar(bar, threshold=None):
+    if threshold:
+        bar = bar.numpy()
+        bar[bar <= threshold] = 0
+        bar[bar > threshold] = 1
+    if use_gpu:
+        print(bar)
+    else:
+        plt.imshow(bar)
+        plt.show()
 
 
 
+batch_size = 16 * 2 # all voices are 18 tabs (or not)
 
-batch_size = 32
-lr = 2e-4
-n_epochs = 100
-
-# test
-test_data = np.random.uniform(low=0.8,high=1.0,size=(32*50, 1, 16, 128))
-# test_data = np.random.randn(32*3, 1, 16, 128)
 
 bars = []
-for i in range(1,257):#257):
-    x = encoder.file_to_dictionary('data/Bach+Johann/' + str(i) + '.mid')['Voice 1']
+d = encoder.file_to_dictionary('data/Bach+Johann/10.mid')
+
+N = 100
+for i in range(1, N):
+    x = encoder.file_to_dictionary('data/Bach+Johann/' + str(i) + '.mid')
+    x = reencodings.change_encoding(x, 0, 1)['Voice 1']
     bars += x
-bars = np.array(bars, dtype=float)
-# bars += np.random.randn(bars.shape[0],bars.shape[1],bars.shape[2])/10
-bars[bars >= 1] = 1
-bars[bars <= 0] = 0
-bars = bars.reshape(-1, 1, 48, 128)[:3968]
-X = bars
-print("bars echentillon : ",bars[0])
+
+X = np.array(bars, dtype=float)
+
+X = X.reshape(X.shape[0], 1, 128, 48)
+X = np.transpose(X, (0,1,3,2)) # X: (n_batches, 1, 48, 128)
+
+X = X[:len(X)-(len(X)%batch_size)]
+# len(X) must be a multiple of batch_size
+# (gotta modify torch.split() so the last incomplete batch is not returned)
+
+"""
+Initialization
+"""
 
 def weights_init(m):
     classname = m.__class__.__name__
@@ -60,6 +92,13 @@ def weights_init(m):
         nn.init.normal_(m.weight.data, 1.0, 0.02)
         nn.init.constant_(m.bias.data, 0)
 
+lr = 2e-4
+n_epochs = 30
+
+G_training_ratio = 2 # number of times the generator is trained at each iteration
+
+netG = gpu(model.Generator())
+netD = gpu(model.Discriminator())
 
 netG.apply(weights_init)
 netD.apply(weights_init)
@@ -67,146 +106,98 @@ netD.apply(weights_init)
 # print(netG)
 # print(netD)
 
-
-
-# len(X) must be a multiple of batch_size
-# (otherwise, modify torch.split() so the last incomplete batch is not returned)
-
 print("Size of data: {} ({} batches)".format(len(X), len(X) / batch_size))
-print("Params: batch_size={}, lr={}, n_epochs={}".format(batch_size, lr, n_epochs))
+print("Params: batch_size={}, lr={}, n_epochs={}, G_training_ratio={}".format(batch_size, lr, n_epochs, G_training_ratio))
 
-optimizer_G = torch.optim.Adam(netG.parameters(), lr=lr, betas=(0.5, 0.999))
-optimizer_D = torch.optim.Adam(netD.parameters(), lr=lr, betas=(0.5, 0.999))
+optimizer_G = torch.optim.Adam(netG.parameters())
+optimizer_D = torch.optim.Adagrad(netD.parameters())
 
 lossG = []
 lossD = []
 
-for epoch in range(1, 21):
+def gamble(tensor):
+    tensor = torch.reshape(tensor, [batch_size, 48*128])
+    tensor = torch.nn.functional.gumbel_softmax(tensor)
+    tensor = torch.reshape(tensor, [batch_size,1,48,128])
+    return tensor
 
-    np.random.shuffle(X)
-    real_samples = torch.from_numpy(X).type(torch.FloatTensor)
+fixed_noise = gpu(torch.randn(batch_size, netG.z_dim))
 
-    lossG_epoch = 0
-    lossD_epoch = 0
+"""
+TRAINING
+"""
 
-    print("D only ; epoch {}/{}".format(epoch, 20))
-
-    for real_batch in real_samples.split(batch_size):
-
-        # improve discriminator
-        z = gpu(torch.randn(batch_size, netG.z_dim))
-        fake_batch = netG(z)
-
-        m = torch.nn.Softmax()
-        fake_batch = m(fake_batch)
-
-        D_scr_on_real = netD(gpu(real_batch))
-        D_scr_on_fake = netD(fake_batch)
-
-        loss = - torch.mean(torch.log(1 - D_scr_on_fake) + torch.log(D_scr_on_real))
-        optimizer_D.zero_grad()
-        loss.backward()
-        optimizer_D.step()
-
-        lossD_epoch += loss
-
-    lossG.append(-5)
-    lossD.append(lossD_epoch)
-
-    print("LossD: {}".format(lossD))
-
-# init
 criterion = nn.BCELoss()
-fixed_noise = torch.randn(64, netG.z_dim, 1, 1)
-real_label = 1
-fake_label = 0
-
 
 for epoch in range(1, n_epochs+1):
 
+    # shuffle training data (no conditioner for the moment)
+
     np.random.shuffle(X)
     real_samples = torch.from_numpy(X).type(torch.FloatTensor)
 
     lossG_epoch = 0
     lossD_epoch = 0
+    n_batch = 0
 
-    print("D and 4G ; epoch {}/{}".format(epoch, n_epochs))
+    # train
 
     for real_batch in real_samples.split(batch_size):
 
-        ###
+        n_batch += 1
+
         # improve discriminator
-        ###
-        # netD.zero_grad()
-        # # on real batch
-        # real = gpu(real_batch)
-        # label = gpu(torch.full((batch_size,), real_label))
-        # output = netD(real).view(-1)
-        # errD_real = criterion(output, label)
-        # errD_real.backward()
-        # D_x = output.mean().item()
-        #
-        z = gpu(torch.randn(batch_size, netG.z_dim))
-        fake_batch = netG(z)
 
-
-        m = torch.nn.Softmax()
-        fake_batch = m(fake_batch)
-
-        D_scr_on_real = netD(gpu(real_batch))
-        D_scr_on_fake = netD(fake_batch)
-
-        loss = - torch.mean(torch.log(1 - D_scr_on_fake) + torch.log(D_scr_on_real))
         optimizer_D.zero_grad()
-        loss.backward()
 
-        # z = gpu(torch.randn(batch_size, netG.z_dim))
-        # fake = netG(z)
-        # label.fill_(fake_label)
-        # output = netD(fake.detach()).view(-1)
-        # errD_fake = criterion(output, label)
-        # errD_fake.backward()
-        # optimizer_D.step()
+        # on real
+        real = gpu(real_batch)
+        real_label = gpu(torch.full((batch_size,), 1))
+        output_real = netD(real).view(-1)
+        errD_real = criterion(output_real, real_label)
+        errD_real.backward()
 
-        lossD_epoch += loss
-        #
-        # errD = errD_real + errD_fake
-        # lossD_epoch += errD
+        # on fake
+        z = gpu(torch.randn(batch_size, netG.z_dim))
+        fake = netG(z)
+        fake_label = gpu(torch.full((batch_size,), 0))
+        output_fake = netD(fake.detach()).view(-1)
+        errD_fake = criterion(output_fake, fake_label)
+        errD_fake.backward()
 
-        # improve generator twice
-        for _ in range(4):
+        optimizer_D.step()
 
-            fake_batch = netG(z)
+        lossD_epoch += errD_real + errD_fake
 
-            m = torch.nn.Softmax()
-            fake_batch = m(fake_batch)
+        # improve generator
 
-            D_scr_on_fake = netD(fake_batch)
-            loss = -torch.mean(torch.log(D_scr_on_fake))
+        for _ in range(G_training_ratio):
+
             optimizer_G.zero_grad()
-            loss.backward()
+
+            z = gpu(torch.randn(batch_size, netG.z_dim))
+            fake = netG(z)
+            fake_label = gpu(torch.full((batch_size,), 0))
+            output = netD(fake).view(-1)
+            errG = criterion(output, fake_label)
+            errG.backward()
 
             optimizer_G.step()
-            lossG_epoch += loss
 
-            # netG.zero_grad()
-            # label.fill_(real_label)
-            # z = gpu(torch.randn(batch_size, netG.z_dim))
-            # fake = netG(z)
-            # output = netD(fake).view(-1)
-            # errG = criterion(output, label)
-            # errG.backward()
-            # optimizer_G.step()
-            #
-            # lossG_epoch += errG
-
-    lossG.append(lossG_epoch)
-    lossD.append(lossD_epoch)
-
-    print("LossG: {}, LossD: {}".format(lossG_epoch, lossD_epoch))
-    print("fake_batch",fake_batch)
+            lossG_epoch += errG
 
 
+    lossG.append(lossG_epoch / (G_training_ratio * n_batch))
+    lossD.append(lossD_epoch / n_batch)
+
+    print("End of epoch {}/{}; lossG={}, lossD={}".format(epoch, n_epochs, lossG[-1], lossD[-1]))
+
+    # if epoch == 1 or epoch % 5 == 0:
+    #     print("Generator sample")
+    #     gen_output = gamble(netG(fixed_noise))
+    #     show_bar(gen_output[0][0].detach(), threshold=0.1)
+
+    # save networks states
 
     if epoch == n_epochs:
         if not os.path.exists('models'):
@@ -226,21 +217,28 @@ for epoch in range(1, n_epochs+1):
         }, "models/netD_epoch_{}.pt".format(epoch))
 
 
-# plt.figure()
-# epochs = list(range(1, 20+n_epochs+1))
-# plt.plot(epochs, lossG, label='Generator loss')
-# plt.plot(epochs, lossD, label='Discriminator loss')
-# plt.xlabel('Epoch')
-# plt.ylabel('Loss (non-normalized)')
-# plt.legend()
-# plt.show()
 
 
-z = torch.randn(batch_size, netG.z_dim)
-out = netG.forward(z)
+plt.figure()
+epochs = list(range(1, n_epochs+1))
+plt.plot(epochs, lossG, label='Generator loss')
+plt.plot(epochs, lossD, label='Discriminator loss')
+plt.xlabel('Epoch')
+plt.ylabel('Loss')
+plt.legend()
+plt.show()
 
-m = torch.nn.Softmax()
-out = m(out)
 
-print("Sortie sur le générateur : ",out)
-print("Sortie sur le générateur : ",out[3])
+gen_output = netG(fixed_noise)
+show_bar(gen_output[0][0].detach(), threshold=0.5)
+show_bar(gen_output[1][0].detach(), threshold=0.5)
+show_bar(gen_output[2][0].detach(), threshold=0.5)
+show_bar(gen_output[3][0].detach(), threshold=0.1)
+show_bar(gen_output[4][0].detach(), threshold=0.2)
+show_bar(gen_output[5][0].detach(), threshold=0.3)
+show_bar(gen_output[6][0].detach(), threshold=0.4)
+show_bar(gen_output[7][0].detach(), threshold=0.6)
+show_bar(gen_output[8][0].detach(), threshold=0.7)
+show_bar(gen_output[9][0].detach(), threshold=0.8)
+show_bar(gen_output[10][0].detach(), threshold=0.9)
+show_bar(gen_output[11][0].detach())
