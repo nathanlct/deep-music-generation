@@ -3,3 +3,10 @@
 *.mid
 models/*
 *.pt
+*.out
+*.aux
+*.log
+*.nav
+*.toc
+*.synctex.gz
+*.snm
