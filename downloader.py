@@ -1,3 +1,8 @@
+'''
+Executing this script downloads the whole dataset that our neural networks
+are trained on. The whole dataset contains 1818 pieces (16.1 Mo).
+'''
+
 import magic
 import os
 import re
