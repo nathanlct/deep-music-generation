@@ -10,3 +10,5 @@ models/*
 *.toc
 *.synctex.gz
 *.snm
+midinet/__pycache__
+midinet_without_cond/__pycache__
