@@ -10,7 +10,8 @@ import encoder
 import reencodings
 import model
 from downloader import PATH
-
+from midiloader import MidiDataset
+from torch.utils.data import Dataset, DataLoader
 
 
 
@@ -28,57 +29,14 @@ def gpu(tensor, gpu=use_gpu):
 DATA LOADING
 """
 
-SCORES_PATH = os.path.join(PATH, 'scores')
-LABELS_PATH = os.path.join(PATH, 'labels')
+print("Loading dataset")
+dataset = MidiDataset("../data")
 
-def load_data():
-    if os.path.isfile(SCORES_PATH) and os.path.isfile(LABELS_PATH):
-        return 0
-    else:
-        scores = []
-        labels = []
-        for dir in os.listdir(PATH):
-            print(dir)
-            dir_path = os.path.join(PATH, dir)
-            for file in os.listdir(dir_path):
-                scores.append(encoder.file_to_dictionary(os.path.join(dir_path, file)))
-                labels.append(dir)
+batch_size = 256 * 2 # all voices are 18 tabs (or not)
 
-    raise AttributeError
+dataloader = DataLoader(dataset,batch_size=batch_size,
+                        shuffle=True,num_workers=4,pin_memory=True)
 
-def show_bar(bar, threshold=None):
-    if threshold:
-        bar = bar.numpy()
-        bar[bar <= threshold] = 0
-        bar[bar > threshold] = 1
-    if use_gpu:
-        print(bar)
-    else:
-        plt.imshow(bar)
-        plt.show()
-
-
-
-batch_size = 16 * 2 # all voices are 18 tabs (or not)
-
-
-bars = []
-d = encoder.file_to_dictionary('data/Bach+Johann/10.mid')
-
-N = 100
-for i in range(1, N):
-    x = encoder.file_to_dictionary('data/Bach+Johann/' + str(i) + '.mid')
-    x = reencodings.change_encoding(x, 0, 1)['Voice 1']
-    bars += x
-
-X = np.array(bars, dtype=float)
-
-X = X.reshape(X.shape[0], 1, 128, 48)
-X = np.transpose(X, (0,1,3,2)) # X: (n_batches, 1, 48, 128)
-
-X = X[:len(X)-(len(X)%batch_size)]
-# len(X) must be a multiple of batch_size
-# (gotta modify torch.split() so the last incomplete batch is not returned)
 
 """
 Initialization
@@ -93,7 +51,7 @@ def weights_init(m):
         nn.init.constant_(m.bias.data, 0)
 
 lr = 2e-4
-n_epochs = 30
+n_epochs = 100
 
 G_training_ratio = 2 # number of times the generator is trained at each iteration
 
@@ -106,7 +64,7 @@ netD.apply(weights_init)
 # print(netG)
 # print(netD)
 
-print("Size of data: {} ({} batches)".format(len(X), len(X) / batch_size))
+print("Size of data: {} ({} batches)".format(len(dataset), len(dataset) / batch_size))
 print("Params: batch_size={}, lr={}, n_epochs={}, G_training_ratio={}".format(batch_size, lr, n_epochs, G_training_ratio))
 
 optimizer_G = torch.optim.Adam(netG.parameters())
@@ -131,18 +89,13 @@ criterion = nn.BCELoss()
 
 for epoch in range(1, n_epochs+1):
 
-    # shuffle training data (no conditioner for the moment)
-
-    np.random.shuffle(X)
-    real_samples = torch.from_numpy(X).type(torch.FloatTensor)
-
     lossG_epoch = 0
     lossD_epoch = 0
     n_batch = 0
 
     # train
 
-    for real_batch in real_samples.split(batch_size):
+    for real_batch in dataloader:
 
         n_batch += 1
 
@@ -228,17 +181,3 @@ plt.ylabel('Loss')
 plt.legend()
 plt.show()
 
-
-gen_output = netG(fixed_noise)
-show_bar(gen_output[0][0].detach(), threshold=0.5)
-show_bar(gen_output[1][0].detach(), threshold=0.5)
-show_bar(gen_output[2][0].detach(), threshold=0.5)
-show_bar(gen_output[3][0].detach(), threshold=0.1)
-show_bar(gen_output[4][0].detach(), threshold=0.2)
-show_bar(gen_output[5][0].detach(), threshold=0.3)
-show_bar(gen_output[6][0].detach(), threshold=0.4)
-show_bar(gen_output[7][0].detach(), threshold=0.6)
-show_bar(gen_output[8][0].detach(), threshold=0.7)
-show_bar(gen_output[9][0].detach(), threshold=0.8)
-show_bar(gen_output[10][0].detach(), threshold=0.9)
-show_bar(gen_output[11][0].detach())
