@@ -75,6 +75,8 @@ def main(file):
     hist2 = pitches_histogram(transposed)
     t2 = best_tonality(hist2, print_results=True)
     score.show('midi')
+    print(len(transposed["Voice 1"]))
+    print(transposed["Voice 1"][0].shape)
     score_rec = dictionary_to_midi(transposed)
     score_rec.show('midi')
 

@@ -8,7 +8,7 @@ import encoder
 class MidiDataset(Dataset):
     """A dataset of midifiles"""
 
-    def __init__(self, root_dir, random = False):
+    def __init__(self, root_dir, random = False, batch_size=128):
         """
         Args:
         root_dir (string): Directory with all the MIDI files
@@ -24,7 +24,7 @@ class MidiDataset(Dataset):
             bars += np.random.randn(bars.shape[0],bars.shape[1],bars.shape[2])/10
         bars[bars >= 1] = 1
         bars[bars <= 0] = 0
-        bars = bars.reshape(-1, 1, 48, 128)[:(10848-10848%128)]
+        bars = bars.reshape(-1, 1, 48, 128)[:(10848-10848%batch_size)]
         self.data = torch.from_numpy(bars).type(torch.FloatTensor)
         self.len = len(self.data)
 
